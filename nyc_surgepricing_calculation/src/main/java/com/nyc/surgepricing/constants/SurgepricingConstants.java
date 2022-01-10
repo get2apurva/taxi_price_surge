@@ -9,10 +9,10 @@ public interface SurgepricingConstants {
 	static final String CSV_FORMAT = "csv";
 	
 	/** The Constant YELLOW_CAB_PATH. */
-	static final String YELLOW_CAB_PATH = "C:\\Users\\AMITH DAS\\workspace\\nyc_surgepricing_calculation\\src\\main\\resources\\nyc_taxi_data.csv";
+	static final String YELLOW_CAB_PATH = "nyc_surgepricing_calculation/src/main/resources/nyc_taxi_data.csv";
 	
 	/** The Constant WEATHER_PATH. */
-	static final String WEATHER_PATH = "C:\\Users\\AMITH DAS\\workspace\\nyc_surgepricing_calculation\\src\\main\\resources\\weather.csv";
+	static final String WEATHER_PATH = "nyc_surgepricing_calculation/src/main/resources/weather.csv";
 	
 	/** The Constant GEO_HASH_PRECISON. */
 	static final int GEO_HASH_PRECISON = 6;

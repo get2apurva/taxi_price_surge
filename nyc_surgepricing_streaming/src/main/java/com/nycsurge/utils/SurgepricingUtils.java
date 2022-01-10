@@ -92,10 +92,10 @@ public class SurgepricingUtils {
 	
 	 public static Map<String, Object> getKafkaParams() {
 	        Map<String, Object> kafkaParams = new HashMap<>();
-	        kafkaParams.put("bootstrap.servers", "localhost:9092");
+	        kafkaParams.put("bootstrap.servers", "127.0.0.1:9092");
 	        kafkaParams.put("key.deserializer", StringDeserializer.class);
 	        kafkaParams.put("value.deserializer", StringDeserializer.class);
-	        kafkaParams.put("group.id", "DEFAULT_GROUP_ID");
+	        kafkaParams.put("group.id", "NEW_GROUP_ID");
 	        kafkaParams.put("auto.offset.reset", "earliest");
 	        kafkaParams.put("enable.auto.commit", false);
 	        return kafkaParams;

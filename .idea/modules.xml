@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/nyc_surgepricing_calculation/nyc.surgepricing.iml" filepath="$PROJECT_DIR$/nyc_surgepricing_calculation/nyc.surgepricing.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/nyc_surge_pricing_estimation.iml" filepath="$PROJECT_DIR$/.idea/nyc_surge_pricing_estimation.iml" />
+      <module fileurl="file://$PROJECT_DIR$/nyc_surgepricing_streaming/nyc_surgepricing_streaming.iml" filepath="$PROJECT_DIR$/nyc_surgepricing_streaming/nyc_surgepricing_streaming.iml" />
+      <module fileurl="file://$PROJECT_DIR$/surgepricing_kafkaproducer/surgepricing_kafkaproducer.iml" filepath="$PROJECT_DIR$/surgepricing_kafkaproducer/surgepricing_kafkaproducer.iml" />
+    </modules>
+  </component>
+</project>

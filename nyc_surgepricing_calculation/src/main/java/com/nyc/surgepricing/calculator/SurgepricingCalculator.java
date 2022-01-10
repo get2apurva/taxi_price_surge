@@ -40,8 +40,14 @@ public class SurgepricingCalculator implements SurgepricingConstants {
 			Dataset<Row> weatherDF = fetchWeatherDataSet(sparkSession);
 			yelloCabDF.cache();
 			weatherDF.cache();
-			LOG.info(weatherDF.count());
-			LOG.info(yelloCabDF.count());
+			Long weatherCount = weatherDF.count();
+			Long yelloCabCount = yelloCabDF.count();
+
+			LOG.info(weatherCount);
+			LOG.info(yelloCabCount);
+			System.out.println("weather count: " + weatherCount);
+			System.out.println("Yellow cab count: " + yelloCabCount);
+
 			writeBackSuppyDemandRatio(sparkSession, yelloCabDF, weatherDF, SURGE_PRICING_ESTIMATION);
 			writeBackTrafficCongestion(sparkSession, yelloCabDF, weatherDF, TRAFFIC_CONGESTION);
 		} catch (Exception exception) {
@@ -68,7 +74,8 @@ public class SurgepricingCalculator implements SurgepricingConstants {
 			Dataset<Row> weatherDF, String tableName) {
 		Dataset<Row> demandSupplyDF = deriveSupplyDemandRatio(sparkSession, yelloCabDF);
 		Dataset<Row> surgeWithWeatherEffDF = corelateWeatherEffect(sparkSession, demandSupplyDF, weatherDF);
-		SurgepricingUtils.writeBackToMySQL(surgeWithWeatherEffDF, tableName);
+		surgeWithWeatherEffDF.show(100);
+		//SurgepricingUtils.writeBackToMySQL(surgeWithWeatherEffDF, tableName);
 	}
 
 	/**
@@ -86,7 +93,8 @@ public class SurgepricingCalculator implements SurgepricingConstants {
 			Dataset<Row> weatherDF, String tableName) {
 		Dataset<Row> trafficCongestionDF = calculateTrafficCongestion(sparkSession, yelloCabDF);
 		Dataset<Row> trafficWithWeatherEffDF = corelateWeatherEffect(sparkSession, trafficCongestionDF, weatherDF);
-		SurgepricingUtils.writeBackToMySQL(trafficWithWeatherEffDF, tableName);
+		trafficWithWeatherEffDF.show(10);
+		//SurgepricingUtils.writeBackToMySQL(trafficWithWeatherEffDF, tableName);
 	}
 
 	/**
@@ -136,8 +144,6 @@ public class SurgepricingCalculator implements SurgepricingConstants {
 	 * Removing the outliers like invalid geohash and trip distance > 200 km etc
 	 * speed of day and hour.
 	 *
-	 * @param sparkSession
-	 *            sparksession instance
 	 * @param yelloCabDF
 	 *            yellowTaxi-Data set
 	 * @return the yelloCabDF after removing the outliers
@@ -162,17 +168,28 @@ public class SurgepricingCalculator implements SurgepricingConstants {
 	public static Dataset<Row> calculateTrafficCongestion(SparkSession sparkSession, Dataset<Row> yelloCabDF) {
 		WindowSpec avgSpeedDay = Window.partitionBy(PICKUP_GEOHASH, PICKUP_DATE);
 		WindowSpec avgSpeedHour = Window.partitionBy(PICKUP_GEOHASH, PICKUP_DATE, PICKUP_HOUR);
+
 		yelloCabDF = yelloCabDF.withColumn(AVG_SPEED_PER_DAY,
 				functions.avg(yelloCabDF.col(TRIP_SPEED)).over(avgSpeedDay));
+
+
 		yelloCabDF = yelloCabDF.withColumn(AVG_SPEED_PER_HOUR,
 				functions.avg(yelloCabDF.col(TRIP_SPEED)).over(avgSpeedHour));
+
+
 		yelloCabDF = yelloCabDF.withColumn(ROW_NUM, functions.row_number().over(avgSpeedHour.orderBy(PICKUP_GEOHASH)));
+
+
 		yelloCabDF = yelloCabDF.filter(yelloCabDF.col(ROW_NUM).equalTo(functions.lit(1))
 				.and(yelloCabDF.col(TRIP_SPEED).notEqual(functions.lit(0))));
 
 		yelloCabDF = SurgepricingUtils.getSelectedColDF(yelloCabDF, TRAFFIC_COLS).distinct();
+
+
 		yelloCabDF = yelloCabDF.withColumn(SPEED_DIFF,
 				yelloCabDF.col(AVG_SPEED_PER_DAY).minus(yelloCabDF.col(AVG_SPEED_PER_HOUR)));
+
+
 		yelloCabDF = yelloCabDF.withColumn(TRAFFIC_LEVEL,
 				functions.when(yelloCabDF.col(SPEED_DIFF).leq(0), functions.lit(1))
 						.when(yelloCabDF.col(SPEED_DIFF).between(0, 5), functions.lit(2))
@@ -193,14 +210,21 @@ public class SurgepricingCalculator implements SurgepricingConstants {
 	 * @return the surge pricing value
 	 */
 	public static Dataset<Row> deriveSupplyDemandRatio(SparkSession sparkSession, Dataset<Row> yelloCabDF) {
+
+		//pickup count PICKUP_CAB_CNT
 		Dataset<Row> pickUpCabsCountByGeoHash = yelloCabDF
 				.groupBy(yelloCabDF.col(PICKUP_GEOHASH), yelloCabDF.col(PICKUP_DATE), yelloCabDF.col(PICKUP_HOUR))
 				.agg(functions.count(yelloCabDF.col(PICKUP_GEOHASH)).as(PICKUP_CAB_CNT),
 						functions.min(yelloCabDF.col(PICKUP_LONGITUDE)).as(PICKUP_LONGITUDE),
 						functions.min(yelloCabDF.col(PICKUP_LATITUDE)).as(PICKUP_LATITUDE));
+
+
+		//Drop count DROPOFF_CAB_CNT
 		Dataset<Row> dropOffCabsCountByGeoHash = yelloCabDF
 				.groupBy(yelloCabDF.col(DROPOFF_GEOHASH), yelloCabDF.col(DROPOFF_DATE), yelloCabDF.col(DROPOFF_HOUR))
 				.agg(functions.count(yelloCabDF.col(DROPOFF_GEOHASH)).as(DROPOFF_CAB_CNT));
+
+
 		Dataset<Row> cabCountByGeoHash = pickUpCabsCountByGeoHash.join(dropOffCabsCountByGeoHash,
 				pickUpCabsCountByGeoHash.col(PICKUP_GEOHASH).equalTo(dropOffCabsCountByGeoHash.col(DROPOFF_GEOHASH))
 						.and(pickUpCabsCountByGeoHash.col(PICKUP_DATE)
@@ -210,12 +234,15 @@ public class SurgepricingCalculator implements SurgepricingConstants {
 				INNER_JOIN);
 		cabCountByGeoHash = cabCountByGeoHash.withColumn(SURGE_PRICE_INTER, functions
 				.round(cabCountByGeoHash.col(PICKUP_CAB_CNT).divide(cabCountByGeoHash.col(DROPOFF_CAB_CNT)), 2));
-
+		//max surge: 5
+		//min surge : 1
 		Dataset<Row> surgePriceDF = cabCountByGeoHash.withColumn(SURGE_PRICE,
 				functions.when(cabCountByGeoHash.col(SURGE_PRICE_INTER).isNull(), functions.lit(1))
 						.when(cabCountByGeoHash.col(SURGE_PRICE_INTER).gt(functions.lit(5)), functions.lit(5))
 						.when(cabCountByGeoHash.col(SURGE_PRICE_INTER).lt(functions.lit(1)), functions.lit(1))
 						.otherwise(cabCountByGeoHash.col(SURGE_PRICE_INTER)));
+
+
 		surgePriceDF = surgePriceDF.withColumnRenamed(PICKUP_GEOHASH, GEOHASH).withColumnRenamed(PICKUP_DATE, TRIP_DATE)
 				.withColumnRenamed(PICKUP_HOUR, TRIP_HOUR).withColumnRenamed(PICKUP_CAB_CNT, DEMAND)
 				.withColumnRenamed(DROPOFF_CAB_CNT, SUPPLY);
